@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Video Secret Link</title>
+<style>
+body{font-family:Arial;background:#f3f4f6;margin:0}.wrap{max-width:650px;margin:35px auto;padding:15px}
+.card{background:white;padding:22px;border-radius:16px;margin-bottom:18px;box-shadow:0 6px 25px #0001}
+input,textarea,button{width:100%;box-sizing:border-box;padding:12px;margin-top:8px;border-radius:10px;font:inherit}
+input,textarea{border:1px solid #ccc}textarea{min-height:90px}button{border:0;background:#111827;color:white;cursor:pointer}
+button.alt{background:#e5e7eb;color:#111827}.out{background:#f8fafc;padding:12px;word-break:break-all;direction:ltr;margin-top:10px;border-radius:10px}
+label{display:block;font-weight:bold;margin-top:14px}.note{color:#6b7280;font-size:13px;line-height:1.6}.msg{background:#f3f4f6;padding:12px;border-radius:10px;margin-top:12px}
+</style>
+</head><body><div class="wrap">
+
+<div class="card">
+<h1>🔐 إنشاء رابط فيديو سري</h1>
+<p class="note">الرابط الناتج يفتح صفحة وسيطة ثم يحوّل الزائر تلقائيًا إلى الفيديو. الرسالة تُشفّر داخل الرابط.</p>
+<label>رابط الفيديو</label><input id="video" type="url" placeholder="https://example.com/video">
+<label>الرسالة السرية</label><textarea id="message" placeholder="اكتب الرسالة"></textarea>
+<label>كلمة المرور (اختيارية)</label><input id="pass" type="password">
+<button onclick="makeLink()">إنشاء الرابط</button>
+<div id="created" style="display:none"><label>الرابط</label><div id="out" class="out"></div><button onclick="copyIt()">نسخ الرابط</button></div>
+</div>
+
+<div class="card">
+<h2>🔓 فك الرسالة</h2>
+<label>الرابط</label><input id="decodeUrl" placeholder="ألصق الرابط هنا">
+<label>كلمة المرور</label><input id="decodePass" type="password">
+<button onclick="decode()">فك الرسالة</button>
+<div id="decoded" class="msg" style="display:none"></div>
+</div>
+
+</div>
+<script>
+const te=new TextEncoder(),td=new TextDecoder();
+function b64(a){return btoa(String.fromCharCode(...a)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"")}
+function ub64(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";let x=atob(s);return Uint8Array.from(x,c=>c.charCodeAt(0))}
+async function key(p,s){let b=await crypto.subtle.importKey("raw",te.encode(p),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt:s,iterations:150000,hash:"SHA-256"},b,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function enc(t,p){if(!p)return{p:0,m:b64(te.encode(t))};let s=crypto.getRandomValues(new Uint8Array(16)),i=crypto.getRandomValues(new Uint8Array(12)),k=await key(p,s),c=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv:i},k,te.encode(t))),a=new Uint8Array(28+c.length);a.set(s);a.set(i,16);a.set(c,28);return{p:1,m:b64(a)}}
+async function dec(o,p){if(!o.p)return td.decode(ub64(o.m));if(!p)throw Error();let a=ub64(o.m),k=await key(p,a.slice(0,16)),x=await crypto.subtle.decrypt({name:"AES-GCM",iv:a.slice(16,28)},k,a.slice(28));return td.decode(x)}
+function base(){return location.href.split("#")[0].split("?")[0]}
+async function makeLink(){let v=video.value.trim(),m=message.value,p=pass.value;if(!v){alert("أدخل رابط الفيديو");return}try{new URL(v)}catch{alert("رابط الفيديو غير صحيح");return}let o=await enc(m,p);o.u=v;let link=base()+"?v="+b64(te.encode(JSON.stringify(o)));out.textContent=link;created.style.display="block"}
+async function copyIt(){await navigator.clipboard.writeText(out.textContent);alert("تم النسخ")}
+async function decode(){try{let u=new URL(decodeUrl.value.trim()),q=u.searchParams.get("v");if(!q)throw Error();let o=JSON.parse(td.decode(ub64(q))),m=await dec(o,decodePass.value);decoded.style.display="block";decoded.innerHTML="<b>الرسالة:</b><br>"+safe(m)+"<br><br><b>الفيديو:</b><br>"+safe(o.u)}catch{decoded.style.display="block";decoded.textContent="تعذر فك الرابط. تحقق من الرابط وكلمة المرور."}}
+function safe(s){return String(s).replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[x]))}
+(function(){let u=new URL(location.href),q=u.searchParams.get("v");if(!q)return;try{let o=JSON.parse(td.decode(ub64(q)));if(o.u&&/^https?:\/\//i.test(o.u))location.replace(o.u)}catch{}})();
+</script></body></html>
